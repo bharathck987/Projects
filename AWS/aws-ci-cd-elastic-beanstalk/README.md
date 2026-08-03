@@ -6,12 +6,6 @@ This project demonstrates a complete CI/CD pipeline using AWS services. Source c
 
 ---
 
-## Architecture
-
-![Architecture](architecture.png)
-
----
-
 ## AWS Services Used
 
 - AWS CodePipeline
