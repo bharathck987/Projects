@@ -1,0 +1,59 @@
+
+
+# Kubernetes MongoDB + Mongo Express Demo
+
+This project demonstrates how to deploy a MongoDB database and Mongo Express web application on Kubernetes.
+
+Mongo Express provides a web interface to manage MongoDB. The application is exposed externally, while MongoDB remains accessible only within the Kubernetes cluster through an internal service.
+
+---
+
+## Architecture
+
+![Architecture](./architecture.png)
+
+> Rename your uploaded image to **architecture.png** and place it in the root of this repository.
+
+---
+
+## Project Overview
+
+The project contains:
+
+- Kubernetes Secrets
+- Kubernetes ConfigMaps
+- MongoDB Deployment
+- MongoDB Internal Service (ClusterIP)
+- Mongo Express Deployment
+- Mongo Express External Service (NodePort/LoadBalancer)
+
+---
+
+## Architecture Flow
+
+```text
+Browser
+   │
+   ▼
+Mongo Express External Service
+   │
+   ▼
+Mongo Express Pod
+   │
+   ▼
+MongoDB Internal Service
+   │
+   ▼
+MongoDB Pod
+```
+
+
+## Browser Request Flow
+
+1. User opens Mongo Express in the browser.
+2. Browser sends request to Mongo Express External Service.
+3. External Service forwards request to Mongo Express Pod.
+4. Mongo Express communicates with MongoDB Internal Service.
+5. Internal Service routes traffic to MongoDB Pod.
+6. MongoDB returns data.
+7. Mongo Express displays the data in the browser.
