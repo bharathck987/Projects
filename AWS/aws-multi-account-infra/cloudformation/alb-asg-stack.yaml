@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Application Load Balancer + Auto Scaling Group using a custom AMI. Deployed per
+  environment, consuming VPC/subnet exports from vpc-stack.yaml.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+
+  CustomAmiId:
+    Type: AWS::EC2::Image::Id
+    Description: Custom AMI ID built via ami-bootstrap.yaml (EC2 Image Builder)
+
+  InstanceType:
+    Type: String
+    Default: t3.micro
+
+  MinSize:
+    Type: Number
+    Default: 1
+
+  MaxSize:
+    Type: Number
+    Default: 4
+
+  DesiredCapacity:
+    Type: Number
+    Default: 2
+
+Resources:
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP/HTTPS inbound to ALB
+      VpcId: !ImportValue
+        Fn::Sub: '${Environment}-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic only from ALB
+      VpcId: !ImportValue
+        Fn::Sub: '${Environment}-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${Environment}-alb'
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets: !Split
+        - ','
+        - !ImportValue
+            Fn::Sub: '${Environment}-public-subnets'
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${Environment}-tg'
+      Port: 80
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: '${Environment}-vpc-id'
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${Environment}-launch-template'
+      LaunchTemplateData:
+        ImageId: !Ref CustomAmiId
+        InstanceType: !Ref InstanceType
+        SecurityGroupIds:
+          - !Ref InstanceSecurityGroup
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub '${Environment}-asg'
+      VPCZoneIdentifier: !Split
+        - ','
+        - !ImportValue
+            Fn::Sub: '${Environment}-private-subnets'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 120
+
+  ScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 60.0
+
+Outputs:
+  ALBDnsName:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName

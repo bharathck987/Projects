@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Cross-account IAM role deployed into dev/staging/prod accounts. Trusts a central
+  admin/CI account to assume this role via sts:AssumeRole, avoiding long-lived
+  IAM user credentials in any environment.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+
+  TrustedAccountId:
+    Type: String
+    Description: AWS Account ID of the central admin/CI/CD account allowed to assume this role
+    # Example placeholder — replace with real account ID at deploy time, never commit real IDs
+    Default: '111111111111'
+
+  ExternalId:
+    Type: String
+    Description: Unique external ID to prevent confused-deputy attacks during AssumeRole
+    NoEcho: true
+
+Resources:
+  CrossAccountDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Environment}-cross-account-deploy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${TrustedAccountId}:root'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref ExternalId
+      MaxSessionDuration: 3600
+      Policies:
+        - PolicyName: !Sub '${Environment}-deploy-permissions'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Least-privilege: scoped to what CI/CD actually needs to deploy infra.
+              # Tighten further per environment (e.g. prod may require manual approval step).
+              - Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                  - 'ec2:Describe*'
+                  - 'ec2:CreateTags'
+                  - 'elasticloadbalancing:*'
+                  - 'autoscaling:*'
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource: '*'
+              - Effect: Deny
+                Action:
+                  - 'iam:CreateUser'
+                  - 'iam:CreateAccessKey'
+                  - 'organizations:*'
+                Resource: '*'
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt CrossAccountDeployRole.Arn
+    Export:
+      Name: !Sub '${Environment}-cross-account-role-arn'

@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  VPC with public/private subnets across 2 AZs, Internet Gateway, and NAT Gateway.
+  Deployed identically per account (dev/staging/prod) with different CIDR ranges.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+    Description: Target environment name
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for the VPC (vary per account, e.g. 10.0.0.0/16, 10.1.0.0/16, 10.2.0.0/16)
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-vpc'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-igw'
+
+  IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 4, 8]]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-public-a'
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 4, 8]]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-public-b'
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 4, 8]]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-private-a'
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCidr, 4, 8]]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-private-b'
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-nat'
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-public-rt'
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IGWAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-private-rt'
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${Environment}-vpc-id'
+  PublicSubnets:
+    Value: !Join [',', [!Ref PublicSubnetA, !Ref PublicSubnetB]]
+    Export:
+      Name: !Sub '${Environment}-public-subnets'
+  PrivateSubnets:
+    Value: !Join [',', [!Ref PrivateSubnetA, !Ref PrivateSubnetB]]
+    Export:
+      Name: !Sub '${Environment}-private-subnets'

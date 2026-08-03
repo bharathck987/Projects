@@ -1,0 +1,95 @@
+{
+  "DenyRootUserActions": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "DenyRootUser",
+        "Effect": "Deny",
+        "Action": "*",
+        "Resource": "*",
+        "Condition": {
+          "StringLike": {
+            "aws:PrincipalArn": "arn:aws:iam::*:root"
+          }
+        }
+      }
+    ]
+  },
+  "DenyRegionsOutsideApproved": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "DenyDisallowedRegions",
+        "Effect": "Deny",
+        "NotAction": [
+          "iam:*",
+          "organizations:*",
+          "route53:*",
+          "cloudfront:*",
+          "support:*",
+          "sts:*"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringNotEquals": {
+            "aws:RequestedRegion": [
+              "us-east-1",
+              "us-west-2"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "DenyPublicS3BucketCreation": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "DenyPublicS3ACLs",
+        "Effect": "Deny",
+        "Action": [
+          "s3:PutBucketAcl",
+          "s3:PutBucketPublicAccessBlock"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "s3:x-amz-acl": [
+              "public-read",
+              "public-read-write"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "DenyLeavingOrganization": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "DenyLeaveOrg",
+        "Effect": "Deny",
+        "Action": "organizations:LeaveOrganization",
+        "Resource": "*"
+      }
+    ]
+  },
+  "DenyDisablingSecurityServices": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "ProtectCloudTrailGuardDutyConfig",
+        "Effect": "Deny",
+        "Action": [
+          "cloudtrail:StopLogging",
+          "cloudtrail:DeleteTrail",
+          "guardduty:DeleteDetector",
+          "guardduty:DisassociateFromMasterAccount",
+          "config:StopConfigurationRecorder",
+          "config:DeleteConfigurationRecorder"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }
+}

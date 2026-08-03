@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  EC2 Image Builder pipeline that produces a standardized, pre-configured AMI
+  (base packages, CloudWatch agent, security baseline) so new instances launch
+  ready-to-serve instead of running bootstrap scripts at boot time.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+
+  BaseImageArn:
+    Type: String
+    Default: 'arn:aws:imagebuilder:us-east-1:aws:image/amazon-linux-2-x86/x.x.x'
+    Description: Base image to build from (Amazon Linux 2, Ubuntu, etc.)
+
+Resources:
+  StandardComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub '${Environment}-standard-hardening'
+      Version: '1.0.0'
+      Platform: Linux
+      Data: |
+        name: StandardHardening
+        description: Installs baseline packages, CloudWatch agent, and applies security hardening
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: UpdateOS
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - sudo yum update -y
+              - name: InstallCloudWatchAgent
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - sudo yum install -y amazon-cloudwatch-agent
+              - name: HardenSSH
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - sudo sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
+                    - sudo sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+  ImageRecipe:
+    Type: AWS::ImageBuilder::ImageRecipe
+    Properties:
+      Name: !Sub '${Environment}-image-recipe'
+      Version: '1.0.0'
+      ParentImage: !Ref BaseImageArn
+      Components:
+        - ComponentArn: !Ref StandardComponent
+
+  InfrastructureConfiguration:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: !Sub '${Environment}-infra-config'
+      InstanceProfileName: !Sub '${Environment}-image-builder-profile'
+      InstanceTypes:
+        - t3.medium
+      TerminateInstanceOnFailure: true
+
+  ImagePipeline:
+    Type: AWS::ImageBuilder::ImagePipeline
+    Properties:
+      Name: !Sub '${Environment}-ami-pipeline'
+      ImageRecipeArn: !Ref ImageRecipe
+      InfrastructureConfigurationArn: !Ref InfrastructureConfiguration
+      Schedule:
+        ScheduleExpression: 'cron(0 0 ? * SUN *)'
+        PipelineExecutionStartCondition: EXPRESSION_MATCH_ONLY
+
+Outputs:
+  PipelineArn:
+    Value: !Ref ImagePipeline

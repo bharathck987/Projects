@@ -1,0 +1,18 @@
+# AWS / Terraform / CloudFormation
+*.pem
+*.key
+.aws/
+*terraform.tfstate*
+*.tfvars
+cdk.out/
+.cfn-lint-cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.*
