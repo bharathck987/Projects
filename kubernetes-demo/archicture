@@ -8,14 +8,6 @@ Mongo Express provides a web interface to manage MongoDB. The application is exp
 
 ---
 
-## Architecture
-
-![Architecture](./architecture.png)
-
-> Rename your uploaded image to **architecture.png** and place it in the root of this repository.
-
----
-
 ## Project Overview
 
 The project contains:
