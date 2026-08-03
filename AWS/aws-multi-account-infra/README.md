@@ -7,7 +7,7 @@ and reducing new-environment spin-up from hours to minutes.
 
 ## Architecture
 
-![Architecture Diagram](diagrams/architecture.png)
+https://cloudstudio.com.au/wp-content/uploads/2021/06/AssumeRole-IAMUserV1.1.png
 
 - **3 AWS Accounts**: `dev`, `staging`, `prod` — isolated under an AWS Organization
 - **Management Account** owns the SCPs and cross-account IAM trust policies
