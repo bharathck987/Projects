@@ -2,6 +2,8 @@
 
 # Kubernetes MongoDB + Mongo Express Demo
 
+https://miro.medium.com/v2/resize:fit:700/1*3yr6NnIOLjRJa_iOa1R4zQ.png
+
 This project demonstrates how to deploy a MongoDB database and Mongo Express web application on Kubernetes.
 
 Mongo Express provides a web interface to manage MongoDB. The application is exposed externally, while MongoDB remains accessible only within the Kubernetes cluster through an internal service.
